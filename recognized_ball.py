@@ -1,78 +1,117 @@
 # coding:utf-8
 
-from proxy_and_image import *
 import cv2
 import numpy as np
+from choose_color import *
 
 
-def preprocess_image(bgr_img, arr1, arr2, arr3, arr4):
-    """
-    对图像进行预处理，包括HSV转换，颜色过滤，平滑处理，腐蚀和膨胀
-    """
+# arr1 为底闸值， arr2为高闸值
+def recognized(bgr_img, arr1, arr2):
     # 转换为HSV
     hue_image = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HSV)
 
-    # 颜色分割
+    # 用颜色分割图像
+    # low_range = np.array([160, 83, 100])
+    # high_range = np.array([180, 255, 255])
+    low_range = np.array(arr1)
+    high_range = np.array(arr2)
+
+    th = cv2.inRange(hue_image, low_range, high_range)
+    # cv2.imshow('result', th)
+    # cv2.waitKey(0)
+
+    # 平滑处理
+    gaus = cv2.GaussianBlur(th, (7, 7), 1.5)
+    # cv2.imshow('result', gaus)
+    # cv2.waitKey(0)
+
+    # 腐蚀
+    eroded = cv2.erode(gaus, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4)), iterations=2)
+    # cv2.imshow('result', eroded)
+    # cv2.waitKey(0)
+
+    # 膨胀
+    dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)), iterations=2)
+    # cv2.imshow('result', dilated)
+    # cv2.waitKey(0)
+
+    # Hough Circle
+    circles = cv2.HoughCircles(dilated, cv2.HOUGH_GRADIENT, 1, 100, param1=15, param2=7, minRadius=15, maxRadius=100)
+
+    center = None
+    radius = None
+    # 绘制
+    if circles is not None:
+        x, y, radius = circles[0][0]
+        center = (x, y)
+        cv2.circle(bgr_img, center, radius, (0, 255, 0), 2)
+
+    return center, radius
+
+
+def recognized_toBytes(bgr_img, arr1, arr2, arr3, arr4):
+    # 转换为HSV
+    hue_image = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HSV)
+
+    # 用颜色分割图像
+    # low_range = np.array([160, 83, 100])
+    # high_range = np.array([180, 255, 255])
     low_range = np.array(arr1)
     high_range = np.array(arr2)
     low_range2 = np.array(arr3)
     high_range2 = np.array(arr4)
 
-    mask1 = cv2.inRange(hue_image, low_range, high_range)
-    mask2 = cv2.inRange(hue_image, low_range2, high_range2)
-    combined_mask = cv2.add(mask1, mask2)
+    th = cv2.inRange(hue_image, low_range, high_range)
+    th1 = cv2.inRange(hue_image, low_range2, high_range2)
+    cv2.add(th, th1)
+    # cv2.imshow('result', th)
+    # cv2.waitKey(0)
 
     # 平滑处理
-    gaus = cv2.GaussianBlur(combined_mask, (7, 7), 1.5)
+    gaus = cv2.GaussianBlur(th, (7, 7), 1.5)
+    # cv2.imshow('result', gaus)
+    # cv2.waitKey(0)
 
-    # 腐蚀和膨胀
+    # 腐蚀
     eroded = cv2.erode(gaus, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4)), iterations=2)
-    dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)), iterations=2)
+    # cv2.imshow('result', eroded)
+    # cv2.waitKey(0)
 
+    # 膨胀
+    dilated = cv2.dilate(eroded, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)), iterations=2)
+    # cv2.imshow('result', dilated)
+    # cv2.waitKey(0)
     return dilated
 
 
-def detect_circle(bgr_img, arr1, arr2, arr3, arr4):
-    """
-    检测图像中的圆形物体
-    """
-    preprocessed_image = preprocess_image(bgr_img, arr1, arr2, arr3, arr4)
+# arr1 为底闸值， arr2为高闸值
+def recognized_contist(bgr_img, arr1, arr2, arr3, arr4):
+    # dilated为一个经过平滑、腐蚀、膨胀后的图片
+    dilated1 = recognized_toBytes(bgr_img, arr1, arr2, arr3, arr4)
 
-    # 霍夫圆检测
-    circles = cv2.HoughCircles(preprocessed_image, cv2.HOUGH_GRADIENT, 1, 100, param1=15, param2=7, minRadius=15,
-                               maxRadius=100)
+    # dilated2 = recognized_toBytes(bgr_img, arr3, arr4)
+    # dilated = contist(dilated1, dilated2)
+    # eroded = cv2.erode(dilated1, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4)), iterations=2)
 
+    # Hough Circle
+    circles = cv2.HoughCircles(dilated1, cv2.HOUGH_GRADIENT, 1, 100, param1=15, param2=7, minRadius=15, maxRadius=100)
+
+    center = None
+    radius = None
+    # 绘制
     if circles is not None:
-        # 仅取最大的一个圆
         x, y, radius = circles[0][0]
         center = (x, y)
-        cv2.circle(bgr_img, center, radius, (0, 255, 0), 2)
-        return center, radius
-    else:
-        return None, None
-
-
-def main():
-    cap = cv2.VideoCapture(0)
-
-    try:
-        while True:
-            success, img = cap.read()
-            if not success:
-                break
-
-            center, radius = detect_circle(img, CONFIG["white_low"], CONFIG["white_high"], CONFIG["black_low"],
-                                           CONFIG["black_high"])
-            if center is not None:
-                print("Detected circle at {} with radius {}".format(center, radius))
-
-            cv2.imshow("res", img)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
+    cv2.circle(bgr_img, center, radius, (0, 255, 0), 2)
+    # 返回圆心坐标以及半径
+    return center, radius
 
 
 if __name__ == '__main__':
-    main()
+    cap = cv2.VideoCapture(0)
+
+    while 1:
+        success, img = cap.read()
+        recognized_contist(img, white_low, white_high, black_low, black_high)
+        cv2.imshow("res", img)
+        cv2.waitKey(1)

@@ -1,28 +1,31 @@
 # coding:utf-8
-import vision_definitions
+
 from naoqi import ALProxy
+import vision_definitions
+import math
 import cv2
 import numpy as np
 
-# 配置参数
-CONFIG = {
-    "ip": "192.168.76.185",
-    "resolution": vision_definitions.kVGA,
-    "colorSpace": vision_definitions.kBGRColorSpace,
-    "fps": 30,
-    "white_low": [0, 4, 99],
-    "white_high": [48, 255, 255],
-    "black_low": [0, 0, 0],
-    "black_high": [179, 255, 92],
-    # 其他参数...
-}
 
+# 基本参数
+resolution = vision_definitions.kVGA
+colorSpace = vision_definitions.kBGRColorSpace
+fps = 5
+frameHeight = 0
+frameWidth = 0
+frameChannels = 0
+frameArray = None
+cameraPitchRange = 47.64/180*math.pi
+cameraYawRange = 60.97/180*math.pi
+
+ip = "192.168.31.120"
+
+# port = 9559
 
 # 封装代理
-def get_Proxy(modelName, IP, port=9559):
-    proxy = ALProxy(modelName, IP, port)
+def get_Proxy(modelName, ip, port=9559):
+    proxy = ALProxy(modelName, ip, port)
     return proxy
-
 
 def get_image_from_camera(camera_id, camera_proxy, videoClient):
     # 获取图片, 一帧一帧组成视频流
@@ -39,10 +42,30 @@ def get_image_from_camera(camera_id, camera_proxy, videoClient):
     return frameArray
 
 
+
 if __name__ == '__main__':
-    vd_proxy = get_Proxy("ALVideoDevice", CONFIG["ip"])
-    videoClient = vd_proxy.subscribeCamera("python_GVM", 1, CONFIG["resolution"], CONFIG["colorSpace"], CONFIG["fps"])
+    vd_proxy = get_Proxy("ALVideoDevice", ip)
+    videoClient = vd_proxy.subscribe("python_GVM", resolution, colorSpace, fps)
     while 1:
         img = get_image_from_camera(1, vd_proxy, videoClient)
         cv2.imshow("res", img)
         cv2.waitKey(1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
